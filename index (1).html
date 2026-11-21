@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#10233f">
+<title>A Special Surprise for Anandhu 🎄🎂</title>
+<style>
+:root{--gold:#ffd879;--cream:#fff7e7;--red:#b92743;--navy:#10233f;--green:#17634c}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:Georgia,'Times New Roman',serif;color:var(--cream);background:radial-gradient(circle at top,#25496a 0,#10233f 55%,#071426 100%);overflow-x:hidden}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.12;background-image:radial-gradient(#fff 1px,transparent 1px);background-size:27px 27px;z-index:0}
+.snow{position:fixed;inset:0;pointer-events:none;z-index:5;overflow:hidden}
+.flake{position:absolute;top:-20px;color:#fff;opacity:.85;animation:fall linear infinite;text-shadow:0 0 8px #fff}
+@keyframes fall{to{transform:translateY(110vh) rotate(360deg)}}
+header{position:sticky;top:0;z-index:10;background:#08172bd9;backdrop-filter:blur(12px);border-bottom:1px solid #ffffff22;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.brand{font-size:13px;letter-spacing:2px;color:var(--gold);font-weight:bold}
+.progress{height:4px;background:#ffffff22;position:absolute;bottom:0;left:0;right:0}.progress span{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--gold),#fff)}
+main{position:relative;z-index:1;max-width:900px;margin:auto;padding:26px 16px 70px}
+.page{display:none;min-height:75vh;align-items:center;justify-content:center;text-align:center;animation:appear .7s ease}
+.page.active{display:flex}
+@keyframes appear{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+.card{width:min(100%,720px);padding:clamp(24px,6vw,55px);border:1px solid #f7d78a88;border-radius:25px;background:linear-gradient(145deg,#ffffff12,#ffffff06);box-shadow:0 22px 70px #0005;position:relative;overflow:hidden}
+.card:before{content:"";position:absolute;inset:9px;border:1px solid #f7d78a44;border-radius:18px;pointer-events:none}
+.eyebrow{color:var(--gold);letter-spacing:3px;text-transform:uppercase;font:700 11px Arial,sans-serif}
+h1{font-size:clamp(42px,9vw,82px);line-height:1.02;margin:16px 0;color:#fff4d6;text-shadow:0 4px 22px #ffcf6b55}
+h2{font-size:clamp(30px,6vw,48px);color:#ffe5a6;margin:12px 0 20px}
+p{font-size:clamp(17px,3vw,21px);line-height:1.7;color:#fff4e2;margin:12px auto;max-width:590px}
+.gold{color:var(--gold)}.emoji{font-size:clamp(48px,10vw,84px);display:block;margin:10px}
+.divider{color:var(--gold);letter-spacing:8px;margin:18px}
+.btnrow{display:flex;justify-content:center;flex-wrap:wrap;gap:12px;margin-top:28px}
+button{border:0;border-radius:999px;padding:14px 24px;font-weight:bold;font-size:15px;cursor:pointer;transition:.2s}
+button:hover{transform:translateY(-3px);filter:brightness(1.08)}
+.primary{background:linear-gradient(135deg,#ffe6a2,#d99a32);color:#38220b;box-shadow:0 8px 24px #e4ad4c44}
+.secondary{background:#ffffff12;color:#fff;border:1px solid #ffffff55}
+.wreath{font-size:26px;letter-spacing:8px;color:#8bd3a3}
+.ribbon{display:inline-block;background:var(--red);padding:8px 22px;transform:rotate(-3deg);font:700 12px Arial;letter-spacing:2px;margin:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:24px}
+.tile{border:1px solid #ffffff30;background:#ffffff0d;border-radius:16px;padding:18px 12px}
+.tile b{display:block;color:var(--gold);font-size:19px;margin:8px}
+.tile span{font-size:30px}
+.quote{font-style:italic;font-size:clamp(20px,4vw,27px);color:#ffe9bd}
+.cake{font-size:100px;filter:drop-shadow(0 8px 15px #0005);cursor:pointer;transition:.3s}.cake:hover{transform:scale(1.08)}
+.hidden-message{display:none;margin-top:20px;padding:18px;border-radius:15px;background:#fff1d51a;border:1px dashed var(--gold)}
+.hidden-message.show{display:block;animation:appear .6s}
+footer{text-align:center;color:#ffffff88;font:12px Arial;padding:18px}
+@media(max-width:520px){header{padding:10px}.brand{font-size:10px}.card{padding:30px 20px}.page{min-height:72vh}}
+</style>
+</head>
+<body>
+<div class="snow" id="snow"></div>
+<header><div class="brand">✦ THE SECRET CELEBRATION ✦</div><div id="pageCount" class="brand">01 / 11</div><div class="progress"><span id="progressBar"></span></div></header>
+<main>
+<section class="page active"><div class="card"><div class="wreath">❄ ✦ ❄ ✦ ❄</div><div class="eyebrow">A little festive mystery</div><h1>Hey, <span class="gold">Anandhu!</span></h1><span class="emoji">🎄✨</span><p>Someone has a special surprise waiting for you. Before you go… turn up your happiness and get ready!</p><div class="ribbon">TOP SECRET: BEST FRIEND EDITION</div><div class="btnrow"><button class="primary" onclick="nextPage()">Open your surprise ✨</button></div></div></section>
+<section class="page"><div class="card"><div class="eyebrow">A very special day</div><span class="emoji">🎂🎁</span><h2>HAPPY BIRTHDAY!</h2><p class="quote">To the one and only Anandhu — may your day sparkle brighter than every Christmas light in the world.</p><div class="divider">✦ ❄ ✦</div><p>Today is all about you. Your smile, your dreams, your stories and all the wonderful moments still waiting to happen.</p><button class="primary" onclick="nextPage()">Keep going →</button></div></section>
+<section class="page"><div class="card"><div class="eyebrow">Wish number one</div><span class="emoji">🌟</span><h2>May your dreams take flight</h2><p>May every goal you chase bring you closer to the life you imagine. May courage find you on difficult days and exciting opportunities find you at every turn.</p><p class="gold">Dream big. Work hard. Keep shining.</p><button class="primary" onclick="nextPage()">Next wish →</button></div></section>
+<section class="page"><div class="card"><div class="eyebrow">Wish number two</div><span class="emoji">😂🤝</span><h2>Unlimited laughter</h2><p>May your year be filled with silly jokes, unforgettable adventures, unexpected happiness and friends who laugh with you until your stomach hurts.</p><p class="quote">Never lose that crazy, wonderful smile!</p><button class="primary" onclick="nextPage()">Next wish →</button></div></section>
+<section class="page"><div class="card"><div class="eyebrow">A friendship toast</div><span class="emoji">🥂</span><h2>Here's to our friendship</h2><p>Best friends are the family we find along the way. Thanks for being someone who makes ordinary days feel like great memories.</p><p>More conversations, more adventures, more laughs — and many more birthdays to celebrate!</p><button class="primary" onclick="nextPage()">One more →</button></div></section>
+<section class="page"><div class="card"><div class="eyebrow">A little Christmas magic</div><span class="emoji">🎅🦌🎄</span><h2>Santa has a message</h2><p class="quote">“Dear Anandhu, I checked my list twice. You're officially on the nice list… but your friends say you're also on the funny list!”</p><p>May the magic of the season bring warmth, peace, good health and surprises worth remembering.</p><button class="primary" onclick="nextPage()">Ho ho ho! Next →</button></div></section>
+<section class="page"><div class="card"><div class="eyebrow">Your birthday gift box</div><span class="emoji" onclick="revealGift()" style="cursor:pointer">🎁</span><h2>Tap to unwrap</h2><p>There's a little message hidden inside this gift. Go on — open it!</p><div class="hidden-message" id="giftMessage"><h2>💛 You are appreciated!</h2><p>Never doubt how special you are. Keep being genuine, kind, funny and completely yourself. The world is better with you in it.</p></div><button class="primary" onclick="revealGift()">Unwrap your gift 🎀</button><div class="btnrow"><button class="secondary" onclick="nextPage()">Continue →</button></div></div></section>
+<section class="page"><div class="card"><div class="eyebrow">The Anandhu appreciation page</div><span class="emoji">🏆</span><h2>One of a kind</h2><div class="grid"><div class="tile"><span>😎</span><b>Legend</b>Simply unforgettable</div><div class="tile"><span>💯</span><b>Original</b>One and only you</div><div class="tile"><span>🤣</span><b>Fun-maker</b>Always a good time</div><div class="tile"><span>❤️</span><b>Good heart</b>Worth celebrating</div></div><p class="gold">Keep being the brilliant person you are.</p><button class="primary" onclick="nextPage()">Next surprise →</button></div></section>
+<section class="page"><div class="card"><div class="eyebrow">A wish for every tomorrow</div><span class="emoji">🌈</span><h2>Your best chapter is ahead</h2><p>May your hard work turn into success, your plans turn into achievements, and your little hopes turn into beautiful realities.</p><p>May you always have a reason to smile and someone beside you to celebrate every win.</p><div class="divider">❄ ✦ ❄</div><button class="primary" onclick="nextPage()">Almost there →</button></div></section>
+<section class="page"><div class="card"><div class="eyebrow">Make a birthday wish</div><span class="cake" onclick="blowCandles()" id="cake">🎂</span><h2>Make a wish, Anandhu!</h2><p>Close your eyes, make your biggest wish and tap the cake to blow out the candles.</p><div class="hidden-message" id="cakeMessage"><h2>🎉 Wish sent to the universe!</h2><p>May something wonderful find its way to you this year.</p></div><button class="primary" onclick="blowCandles()">Blow the candles! 🕯️</button><div class="btnrow"><button class="secondary" onclick="nextPage()">Final page →</button></div></div></section>
+<section class="page"><div class="card"><div class="wreath">❄ ✦ 🎄 ✦ ❄</div><div class="eyebrow">From your best friend</div><h1>Stay awesome,<br><span class="gold">Anandhu!</span></h1><span class="emoji">❤️🎂🥳</span><p class="quote">“A great friend is a gift that makes every year brighter.”</p><p>Happy Birthday once again! May this year be your happiest, healthiest and most successful one yet.</p><div class="ribbon">WITH LOTS OF LOVE & GOOD VIBES</div><p class="gold">— Your best friend 💛</p><div class="btnrow"><button class="primary" onclick="celebrate()">Celebrate again 🎊</button><button class="secondary" onclick="goTo(0)">Replay surprise ↺</button></div></div></section>
+</main>
+<footer>Made with ❤️, friendship & a little Christmas magic · A surprise for Anandhu</footer>
+<script>
+let current=0;const pages=[...document.querySelectorAll('.page')];
+function update(){pages.forEach((p,i)=>p.classList.toggle('active',i===current));document.getElementById('pageCount').textContent=String(current+1).padStart(2,'0')+' / '+pages.length;document.getElementById('progressBar').style.width=((current+1)/pages.length*100)+'%';window.scrollTo({top:0,behavior:'smooth'})}
+function nextPage(){if(current<pages.length-1){current++;update()}else celebrate()}
+function goTo(n){current=n;update()}
+function revealGift(){document.getElementById('giftMessage').classList.add('show');burst()}
+function blowCandles(){document.getElementById('cake').textContent='🎂💨';document.getElementById('cakeMessage').classList.add('show');burst()}
+function burst(){for(let i=0;i<35;i++){const e=document.createElement('span');e.textContent=['✨','🎉','⭐','💛','❄'][Math.floor(Math.random()*5)];e.style.cssText=`position:fixed;z-index:20;left:${Math.random()*100}vw;top:${Math.random()*75+10}vh;font-size:${18+Math.random()*22}px;pointer-events:none;animation:pop 1.8s ease-out forwards`;document.body.appendChild(e);setTimeout(()=>e.remove(),1900)}}
+function celebrate(){burst();goTo(1)}
+const style=document.createElement('style');style.textContent='@keyframes pop{0%{transform:translateY(0) scale(.5);opacity:0}20%{opacity:1}100%{transform:translateY(-100px) rotate(180deg) scale(1.2);opacity:0}}';document.head.appendChild(style);
+const snow=document.getElementById('snow');for(let i=0;i<42;i++){const f=document.createElement('span');f.className='flake';f.textContent='❄';f.style.left=Math.random()*100+'%';f.style.fontSize=(8+Math.random()*15)+'px';f.style.animationDuration=(7+Math.random()*12)+'s';f.style.animationDelay=(-Math.random()*18)+'s';snow.appendChild(f)}
+</script>
+</body>
+</html>
