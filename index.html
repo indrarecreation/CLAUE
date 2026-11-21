@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maze Home Race — 2 Players, 10 Levels</title>
+<style>
+  :root { --bg:#05070f; --panel:#0e1328; --p1:#35e0ff; --p2:#ff9f43; --gold:#ffd34d; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; background:var(--bg); color:#e8ecff; font-family:system-ui,Segoe UI,Roboto,sans-serif; }
+  #wrap { max-width:980px; margin:0 auto; padding:10px; position:relative; }
+  #hud { display:flex; gap:10px; flex-wrap:wrap; justify-content:space-between; align-items:center;
+         background:var(--panel); border-radius:10px; padding:8px 14px; margin-bottom:8px; font-size:15px; }
+  #hud .p1 { color:var(--p1); font-weight:600; }
+  #hud .p2 { color:var(--p2); font-weight:600; }
+  #hud .lv { color:var(--gold); font-weight:700; }
+  #stage { position:relative; }
+  canvas { width:100%; height:auto; display:block; border-radius:10px; background:#05070f; }
+  #overlay { position:absolute; inset:0; display:none; align-items:center; justify-content:center; text-align:center;
+             background:rgba(5,7,15,.82); border-radius:10px; padding:20px; }
+  #overlay .box { max-width:640px; }
+  #overlay h1 { margin:0 0 6px; font-size:34px; color:var(--gold); letter-spacing:1px; }
+  #overlay h2 { margin:0 0 10px; font-size:22px; }
+  #overlay p { margin:6px 0; line-height:1.45; color:#c9d0f5; }
+  #overlay table { margin:12px auto; border-collapse:collapse; font-size:15px; }
+  #overlay td, #overlay th { padding:5px 12px; border-bottom:1px solid #263061; }
+  #overlay .k { background:#1a2250; border:1px solid #3a4890; border-radius:5px; padding:1px 7px; font-family:monospace; }
+  #overlay .go { margin-top:14px; font-size:17px; color:var(--gold); animation:blink 1.2s infinite; }
+  @keyframes blink { 50% { opacity:.35; } }
+  .c1 { color:var(--p1); } .c2 { color:var(--p2); }
+  #foot { text-align:center; font-size:12px; color:#7d86b8; margin-top:6px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <span class="lv" id="hl">Level 1 / 10</span>
+    <span id="ht">⏱ --</span>
+    <span class="p1" id="h1"></span>
+    <span class="p2" id="h2"></span>
+  </div>
+  <div id="stage">
+    <canvas id="c" width="960" height="640"></canvas>
+    <div id="overlay"><div class="box" id="obox"></div></div>
+  </div>
+  <div id="foot">P1: WASD + E (sonar ping) &nbsp;|&nbsp; P2: Arrow keys + / (sonar ping) &nbsp;|&nbsp; P pause &nbsp;|&nbsp; R new maze</div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+const D = [[1,0],[-1,0],[0,1],[0,-1]];              // right, left, down, up
+const KEYS = { KeyD:[0,0], KeyA:[0,1], KeyS:[0,2], KeyW:[0,3],
+               ArrowRight:[1,0], ArrowLeft:[1,1], ArrowDown:[1,2], ArrowUp:[1,3] };
+const MOVE = 0.11;            // seconds per player step
+const MAXLEVEL = 10;
+const PORTAL_COLORS = ['#c77dff', '#4dff9d', '#ff6bd6'];
+
+let mode = 'menu';            // menu | count | play | paused | result | final
+let level = 1, M = null, players = [], gt = 0, cdt = 0;
+let scores = [0,0], wins = [0,0], lastWinner = null;
+
+/* ---------- audio ---------- */
+let ac = null;
+function audioInit(){ if(!ac){ try{ ac = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } }
+function beep(f, d=0.1, type='sine', v=0.06){
+  if(!ac) return;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.value = f;
+  g.gain.setValueAtTime(v, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + d);
+  o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime + d);
+}
+function fanfare(){ [523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.18,'triangle',.08), i*120)); }
+
+/* ---------- level generation ---------- */
+function featList(n){
+  const f = [];
+  if(n >= 2) f.push('Loops');
+  if(n >= 3) f.push('Patrol ghosts');
+  if(n >= 4) f.push('Fog of war');
+  if(n >= 6) f.push('Portals');
+  if(n >= 9) f.push('No map memory');
+  return f.length ? f.join(' · ') : 'Classic maze';
+}
+
+function genLevel(n){
+  const cw = 7 + 2*n, ch = Math.round(5 + 1.3*n);
+  const tw = cw*2 + 1, th = ch*2 + 1;
+  const g = Array.from({length:th}, () => new Uint8Array(tw).fill(1));   // 1 = wall
+  // recursive backtracker (iterative) -> long winding corridors
+  const seen = new Uint8Array(cw*ch);
+  const stack = [[0,0]]; seen[0] = 1; g[1][1] = 0;
+  while(stack.length){
+    const [cx,cy] = stack[stack.length-1];
+    const nb = [];
+    for(const [dx,dy] of D){
+      const nx = cx+dx, ny = cy+dy;
+      if(nx>=0 && ny>=0 && nx<cw && ny<ch && !seen[ny*cw+nx]) nb.push([nx,ny,dx,dy]);
+    }
+    if(!nb.length){ stack.pop(); continue; }
+    const [nx,ny,dx,dy] = nb[(Math.random()*nb.length)|0];
+    g[cy*2+1+dy][cx*2+1+dx] = 0; g[ny*2+1][nx*2+1] = 0;
+    seen[ny*cw+nx] = 1; stack.push([nx,ny]);
+  }
+  // braid: open some walls to create loops (more routes = more confusion)
+  if(n >= 2){
+    const cand = [];
+    for(let y=1;y<th-1;y++) for(let x=1;x<tw-1;x++){
+      if(!g[y][x] || ((x&1)===(y&1))) continue;
+      if(x&1){ if(!g[y-1][x] && !g[y+1][x]) cand.push([x,y]); }
+      else   { if(!g[y][x-1] && !g[y][x+1]) cand.push([x,y]); }
+    }
+    for(let i=cand.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [cand[i],cand[j]]=[cand[j],cand[i]]; }
+    const k = Math.floor(cand.length * Math.min(0.10, 0.012*n));
+    for(let i=0;i<k;i++) g[cand[i][1]][cand[i][0]] = 0;
+  }
+  // BFS from start
+  const dist = new Int32Array(tw*th).fill(-1);
+  const q = [1*tw+1]; dist[tw+1] = 0;
+  for(let h=0; h<q.length; h++){
+    const id = q[h], x = id%tw, y = (id/tw)|0;
+    for(const [dx,dy] of D){
+      const nx=x+dx, ny=y+dy;
+      if(!g[ny][nx] && dist[ny*tw+nx] < 0){ dist[ny*tw+nx] = dist[id]+1; q.push(ny*tw+nx); }
+    }
+  }
+  // home = farthest cell centre
+  let home = {x:1,y:1}, best = -1;
+  const floors = [], cells = [];
+  for(let y=1;y<th-1;y++) for(let x=1;x<tw-1;x++){
+    if(g[y][x]) continue;
+    floors.push([x,y]);
+    if((x&1) && (y&1)){ cells.push([x,y]); if(dist[y*tw+x] > best){ best = dist[y*tw+x]; home = {x,y}; } }
+  }
+  const T = Math.floor(Math.min(W/tw, H/th));
+  const fog = n >= 4;
+  const m = {
+    g, tw, th, cw, ch, T, ox: Math.floor((W-T*tw)/2), oy: Math.floor((H-T*th)/2),
+    home, path: best, dist, fog, r: fog ? 14 - 0.8*n : 0, memory: n>=4 && n<=8,
+    seen: new Uint8Array(tw*th), alpha: new Float32Array(tw*th).fill(1),
+    portals: [], portalAt: new Map(), enemies: [], eStep: Math.max(0.17, 0.36 - 0.02*n),
+    limit: Math.min(240, Math.ceil(30 + best*0.3))
+  };
+  m.time = m.limit;
+  // portals
+  const pc = n >= 6 ? Math.floor((n-4)/2) : 0;
+  const used = new Set([tw+1, home.y*tw+home.x]);
+  for(let i=0;i<pc;i++){
+    const pool = cells.filter(([x,y]) => dist[y*tw+x] > 8 && !used.has(y*tw+x));
+    if(pool.length < 2) break;
+    const a = pool[(Math.random()*pool.length)|0];
+    const far = pool.filter(([x,y]) => Math.hypot(x-a[0], y-a[1]) >= 10);
+    const b = (far.length ? far : pool)[(Math.random()*(far.length||pool.length))|0];
+    if(a === b) continue;
+    const ia = a[1]*tw+a[0], ib = b[1]*tw+b[0];
+    used.add(ia); used.add(ib);
+    m.portalAt.set(ia, ib); m.portalAt.set(ib, ia);
+    m.portals.push({id:ia, c:i}, {id:ib, c:i});
+  }
+  // patrol ghosts
+  const ec = n >= 3 ? Math.floor((n-1)/2) : 0;
+  const epool = floors.filter(([x,y]) => dist[y*tw+x] > 12 && !(x===home.x && y===home.y));
+  for(let i=0;i<ec && epool.length;i++){
+    const [x,y] = epool[(Math.random()*epool.length)|0];
+    m.enemies.push({x,y,rx:x,ry:y,t:Math.random()*m.eStep,last:-1});
+  }
+  return m;
+}
+
+/* ---------- game flow ---------- */
+function mk(name, col, tag, old){
+  return { name, col, tag, held: old ? old.held : [], x:1, y:1, rx:1, ry:1, cd:0, stun:0, lock:-1, pings:3, ping:0 };
+}
+function startLevel(n){
+  level = n; M = genLevel(n); gt = 0;
+  const old = players;
+  players = [ mk('Player 1','#35e0ff','1',old[0]), mk('Player 2','#ff9f43','2',old[1]) ];
+  mode = 'count'; cdt = 2.6; hideOverlay();
+}
+function endLevel(winner){
+  mode = 'result'; lastWinner = winner;
+  let html;
+  if(winner === null){
+    html = `<h1>Time's up!</h1><p>Nobody made it home in time. No points this level.</p>`;
+    beep(180,.4,'sawtooth',.07);
+  } else {
+    const pts = Math.round((100 + Math.ceil(M.time)*3) * (1 + (level-1)*0.1));
+    scores[winner] += pts; wins[winner]++;
+    const p = players[winner];
+    html = `<h1 style="color:${p.col}">${p.name} is home!</h1>
+            <p><b>+${pts}</b> points &nbsp;(speed bonus: ${Math.ceil(M.time)}s left)</p>`;
+    fanfare();
+  }
+  html += `<table><tr><th></th><th class="c1">Player 1</th><th class="c2">Player 2</th></tr>
+           <tr><td>Total score</td><td>${scores[0]}</td><td>${scores[1]}</td></tr>
+           <tr><td>Levels won</td><td>${wins[0]}</td><td>${wins[1]}</td></tr></table>
+           <p class="go">Press <span class="k">Space</span> ${level<MAXLEVEL ? 'for Level '+(level+1) : 'for final results'}</p>`;
+  showOverlay(html);
+}
+function finalScreen(){
+  mode = 'final';
+  let head;
+  if(scores[0] === scores[1]) head = `<h1>It's a tie!</h1>`;
+  else { const w = scores[0] > scores[1] ? 0 : 1; head = `<h1 style="color:${players[w].col}">${players[w].name} wins the game!</h1>`; }
+  showOverlay(`${head}<table><tr><th></th><th class="c1">Player 1</th><th class="c2">Player 2</th></tr>
+    <tr><td>Total score</td><td>${scores[0]}</td><td>${scores[1]}</td></tr>
+    <tr><td>Levels won</td><td>${wins[0]}</td><td>${wins[1]}</td></tr></table>
+    <p class="go">Press <span class="k">Space</span> to play again</p>`);
+  fanfare();
+}
+function menuScreen(){
+  showOverlay(`<h1>🏠 MAZE HOME RACE</h1>
+  <h2>2 players · 10 levels · one maze · one home</h2>
+  <p>Both players start at the green pad. Find the golden house first to win the level.
+  Mazes grow bigger every level — and get nastier.</p>
+  <table>
+    <tr><th></th><th class="c1">Player 1</th><th class="c2">Player 2</th></tr>
+    <tr><td>Move</td><td><span class="k">W A S D</span></td><td><span class="k">← ↑ ↓ →</span></td></tr>
+    <tr><td>Sonar ping (fog levels)</td><td><span class="k">E</span></td><td><span class="k">/</span></td></tr>
+  </table>
+  <p style="font-size:14px">Level 2+: loops · 3+: patrol ghosts (send you back to start) · 4+: fog of war + 3 sonar pings
+  (points an arrow toward home) · 6+: portals · 9+: no map memory.</p>
+  <p class="go">Press <span class="k">Space</span> to start</p>`);
+}
+function advance(){
+  if(mode === 'menu'){ scores=[0,0]; wins=[0,0]; startLevel(1); }
+  else if(mode === 'result'){ level < MAXLEVEL ? startLevel(level+1) : finalScreen(); }
+  else if(mode === 'final'){ scores=[0,0]; wins=[0,0]; startLevel(1); }
+  else if(mode === 'paused'){ mode = 'play'; hideOverlay(); }
+}
+function togglePause(){
+  if(mode === 'play'){ mode = 'paused'; showOverlay(`<h1>Paused</h1><p class="go">Press <span class="k">Space</span> to resume</p>`); }
+  else if(mode === 'paused') advance();
+}
+const ov = document.getElementById('overlay'), obox = document.getElementById('obox');
+function showOverlay(html){ obox.innerHTML = html; ov.style.display = 'flex'; }
+function hideOverlay(){ ov.style.display = 'none'; }
+
+/* ---------- input ---------- */
+addEventListener('keydown', e => {
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','Slash'].includes(e.code)) e.preventDefault();
+  audioInit();
+  if(e.repeat) return;
+  const k = KEYS[e.code];
+  if(k){ const p = players[k[0]]; if(p && !p.held.includes(k[1])) p.held.push(k[1]); return; }
+  if(e.code === 'Space' || e.code === 'Enter') advance();
+  else if(e.code === 'KeyE') ping(0);
+  else if(e.code === 'Slash') ping(1);
+  else if(e.code === 'KeyP' || e.code === 'Escape') togglePause();
+  else if(e.code === 'KeyR' && (mode === 'play' || mode === 'count')) startLevel(level);
+});
+addEventListener('keyup', e => {
+  const k = KEYS[e.code];
+  if(k){ const p = players[k[0]]; if(p) p.held = p.held.filter(d => d !== k[1]); }
+});
+addEventListener('blur', () => players.forEach(p => p.held = []));
+
+function ping(i){
+  const p = players[i];
+  if(mode !== 'play' || !p || !M.fog || p.pings <= 0 || p.ping > 0) return;
+  p.pings--; p.ping = 3.5; beep(880,.25,'sine',.07); setTimeout(()=>beep(1180,.2,'sine',.05),120);
+}
+
+/* ---------- update ---------- */
+function arrive(p){
+  const id = p.y*M.tw + p.x;
+  if(M.portalAt.has(id)){
+    if(p.lock !== id){
+      const to = M.portalAt.get(id);
+      p.x = to % M.tw; p.y = (to / M.tw) | 0; p.rx = p.x; p.ry = p.y; p.lock = to;
+      beep(300,.15,'triangle'); setTimeout(()=>beep(600,.15,'triangle'),90);
+    }
+  } else p.lock = -1;
+  beep(260 + Math.random()*20, .03, 'square', .015);
+}
+function moveEnemy(e){
+  const opts = [];
+  for(let d=0; d<4; d++){
+    const nx = e.x + D[d][0], ny = e.y + D[d][1];
+    if(!M.g[ny][nx]) opts.push(d);
+  }
+  if(!opts.length) return;
+  const rev = e.last >= 0 ? (e.last ^ 1) : -1;
+  let c = opts.filter(d => d !== rev);
+  if(!c.length) c = opts;
+  let pick = c[(Math.random()*c.length)|0];
+  if(level >= 6 && Math.random() < 0.45){
+    let tgt = null, bd = 8;
+    for(const p of players){ const d = Math.abs(p.x-e.x)+Math.abs(p.y-e.y); if(d < bd){ bd = d; tgt = p; } }
+    if(tgt){
+      let bs = 1e9;
+      for(const d of c){
+        const s = Math.abs(tgt.x-(e.x+D[d][0])) + Math.abs(tgt.y-(e.y+D[d][1]));
+        if(s < bs){ bs = s; pick = d; }
+      }
+    }
+  }
+  e.last = pick; e.x += D[pick][0]; e.y += D[pick][1];
+}
+function update(dt){
+  if(mode === 'paused' || !M) return;
+  const k = 1 - Math.exp(-dt*30);
+  for(const p of players){ p.rx += (p.x-p.rx)*k; p.ry += (p.y-p.ry)*k; }
+  if(mode === 'count'){
+    cdt -= dt;
+    const n = Math.ceil(cdt);
+    if(update.lastN !== n){ update.lastN = n; if(n>0) beep(440,.1,'square',.05); }
+    if(cdt <= 0){ mode = 'play'; beep(880,.25,'square',.06); }
+    return;
+  }
+  if(mode !== 'play') return;
+  gt += dt; M.time -= dt;
+  for(const p of players){
+    p.stun = Math.max(0, p.stun-dt); p.ping = Math.max(0, p.ping-dt);
+    if(p.stun > 0) continue;
+    if(gt >= p.cd && p.held.length){
+      const [dx,dy] = D[p.held[p.held.length-1]];
+      const nx = p.x+dx, ny = p.y+dy;
+      if(!M.g[ny][nx]){ p.x = nx; p.y = ny; p.cd = gt + MOVE; arrive(p); }
+    }
+  }
+  for(const e of M.enemies){
+    e.rx += (e.x-e.rx)*k; e.ry += (e.y-e.ry)*k;
+    e.t += dt;
+    if(e.t >= M.eStep){ e.t = 0; moveEnemy(e); }
+    for(const p of players){
+      if(p.stun <= 0 && Math.hypot(e.rx-p.rx, e.ry-p.ry) < 0.62){
+        p.x = 1; p.y = 1; p.rx = 1; p.ry = 1; p.stun = 1.3; p.lock = -1;
+        beep(120,.35,'sawtooth',.08);
+      }
+    }
+  }
+  // win check
+  for(let i=0;i<2;i++){
+    const p = players[i];
+    if(p.x === M.home.x && p.y === M.home.y){ endLevel(i); return; }
+  }
+  if(M.time <= 0){ M.time = 0; endLevel(null); }
+}
+
+/* ---------- drawing ---------- */
+function house(cx, cy, s){
+  ctx.fillStyle = '#ffd34d';
+  ctx.beginPath(); ctx.moveTo(cx-s*.52, cy-s*.02); ctx.lineTo(cx, cy-s*.52); ctx.lineTo(cx+s*.52, cy-s*.02); ctx.closePath(); ctx.fill();
+  ctx.fillRect(cx-s*.38, cy-s*.02, s*.76, s*.5);
+  ctx.fillStyle = '#7a4b00'; ctx.fillRect(cx-s*.1, cy+s*.16, s*.2, s*.32);
+}
+function draw(){
+  ctx.globalAlpha = 1; ctx.fillStyle = '#05070f'; ctx.fillRect(0,0,W,H);
+  if(!M) return;
+  const {tw, th, T, ox, oy, g} = M;
+  // tiles + visibility
+  for(let y=0;y<th;y++) for(let x=0;x<tw;x++){
+    const i = y*tw + x;
+    let a = 1;
+    if(M.fog){
+      let d = 1e9;
+      for(const p of players) d = Math.min(d, Math.hypot(x-p.rx, y-p.ry));
+      a = d <= M.r-2 ? 1 : d >= M.r ? 0 : (M.r-d)/2;
+      if(a > 0.5) M.seen[i] = 1;
+      if(M.memory && M.seen[i]) a = Math.max(a, 0.38);
+    }
+    M.alpha[i] = a;
+    if(a <= 0.01) continue;
+    ctx.globalAlpha = a;
+    const px = ox + x*T, py = oy + y*T;
+    if(g[y][x]){
+      ctx.fillStyle = '#27325f'; ctx.fillRect(px, py, T, T);
+      ctx.fillStyle = '#35448f'; ctx.fillRect(px+1, py+1, T-2, Math.max(1,T*0.35));
+    } else {
+      ctx.fillStyle = '#0f1630'; ctx.fillRect(px, py, T, T);
+    }
+  }
+  const aAt = (x,y) => M.alpha[Math.round(y)*tw + Math.round(x)];
+  // start pad
+  ctx.globalAlpha = Math.max(aAt(1,1), 0.5);
+  ctx.strokeStyle = '#4dff9d'; ctx.lineWidth = Math.max(1.5, T*.12);
+  ctx.beginPath(); ctx.arc(ox+1.5*T, oy+1.5*T, T*.42, 0, 7); ctx.stroke();
+  // portals
+  for(const po of M.portals){
+    const x = po.id % tw, y = (po.id/tw)|0, a = M.alpha[po.id];
+    if(a < .05) continue;
+    ctx.globalAlpha = a;
+    const cx = ox + (x+.5)*T, cy = oy + (y+.5)*T;
+    ctx.strokeStyle = PORTAL_COLORS[po.c]; ctx.lineWidth = Math.max(2, T*.14);
+    ctx.beginPath(); ctx.arc(cx, cy, T*.36, gt*3, gt*3 + 4.6); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, T*.18, -gt*4, -gt*4 + 4.6); ctx.stroke();
+  }
+  // home
+  const ha = M.alpha[M.home.y*tw + M.home.x];
+  if(ha > .05){
+    ctx.globalAlpha = ha;
+    const cx = ox + (M.home.x+.5)*T, cy = oy + (M.home.y+.5)*T;
+    ctx.save(); ctx.shadowColor = '#ffd34d'; ctx.shadowBlur = T*(.8 + .4*Math.sin(gt*4));
+    house(cx, cy, T*.95); ctx.restore();
+  }
+  // ghosts
+  for(const e of M.enemies){
+    if(aAt(e.rx, e.ry) < .6) continue;
+    ctx.globalAlpha = 1;
+    const cx = ox + (e.rx+.5)*T, cy = oy + (e.ry+.5)*T, r = T*.4;
+    ctx.fillStyle = '#ff4d6d';
+    ctx.beginPath(); ctx.arc(cx, cy-r*.1, r, Math.PI, 0); ctx.lineTo(cx+r, cy+r*.8);
+    for(let i=0;i<4;i++) ctx.lineTo(cx+r-(i+.5)*r*.5, cy+r*(i%2?.8:.45));
+    ctx.lineTo(cx-r, cy+r*.8); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(cx-r*.38, cy-r*.2, r*.24, 0, 7); ctx.arc(cx+r*.38, cy-r*.2, r*.24, 0, 7); ctx.fill();
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.arc(cx-r*.38, cy-r*.2, r*.11, 0, 7); ctx.arc(cx+r*.38, cy-r*.2, r*.11, 0, 7); ctx.fill();
+  }
+  // players
+  for(const p of players){
+    const cx = ox + (p.rx+.5)*T, cy = oy + (p.ry+.5)*T;
+    ctx.globalAlpha = p.stun > 0 ? (Math.floor(gt*14)%2 ? .25 : .8) : 1;
+    ctx.fillStyle = p.col; ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(1, T*.08);
+    ctx.beginPath(); ctx.arc(cx, cy, T*.36, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#021'; ctx.font = `bold ${Math.max(9, T*.5)}px system-ui`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(p.tag, cx, cy+1);
+    // sonar ping arrow
+    if(p.ping > 0){
+      const hx = M.home.x - p.rx, hy = M.home.y - p.ry, d = Math.hypot(hx, hy) || 1;
+      const ux = hx/d, uy = hy/d, L = T*(2.2 + Math.sin(gt*8)*.3);
+      const sx = cx + ux*T*1.1, sy = cy + uy*T*1.1, ex = sx + ux*L, ey = sy + uy*L;
+      ctx.globalAlpha = Math.min(1, p.ping);
+      ctx.strokeStyle = '#ffd34d'; ctx.fillStyle = '#ffd34d'; ctx.lineWidth = Math.max(2, T*.16);
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
+      const hs = T*.55;
+      ctx.beginPath(); ctx.moveTo(ex+ux*hs, ey+uy*hs);
+      ctx.lineTo(ex-uy*hs*.6, ey+ux*hs*.6); ctx.lineTo(ex+uy*hs*.6, ey-ux*hs*.6); ctx.closePath(); ctx.fill();
+      ctx.font = `bold ${Math.max(12, T*.8)}px system-ui`;
+      ctx.fillText('≈' + Math.round(d) + ' tiles', cx + ux*(T*1.1+L+T*2.2), cy + uy*(T*1.1+L+T*2.2));
+    }
+  }
+  ctx.globalAlpha = 1;
+  // countdown banner
+  if(mode === 'count'){
+    ctx.fillStyle = 'rgba(5,7,15,.55)'; ctx.fillRect(0, H/2-110, W, 220);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffd34d'; ctx.font = 'bold 38px system-ui';
+    ctx.fillText('LEVEL ' + level, W/2, H/2-62);
+    ctx.fillStyle = '#c9d0f5'; ctx.font = '18px system-ui';
+    ctx.fillText(featList(level) + '  ·  ' + M.cw + '×' + M.ch + ' maze', W/2, H/2-28);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 76px system-ui';
+    ctx.fillText(Math.max(1, Math.ceil(cdt)) , W/2, H/2+50);
+  }
+}
+
+/* ---------- HUD + loop ---------- */
+const hl = document.getElementById('hl'), ht = document.getElementById('ht'),
+      h1 = document.getElementById('h1'), h2 = document.getElementById('h2');
+function hud(){
+  hl.textContent = `Level ${level} / ${MAXLEVEL}` + (M ? ' · ' + featList(level) : '');
+  ht.textContent = M ? `⏱ ${Math.max(0, Math.ceil(M.time))}s` : '⏱ --';
+  const pg = i => (M && M.fog && players[i]) ? ` · 📡${players[i].pings}` : '';
+  h1.textContent = `P1  ${scores[0]} pts · ${wins[0]}W${pg(0)}`;
+  h2.textContent = `P2  ${scores[1]} pts · ${wins[1]}W${pg(1)}`;
+}
+let last = performance.now();
+function frame(ts){
+  const dt = Math.min(0.05, (ts-last)/1000); last = ts;
+  update(dt); draw(); hud();
+  requestAnimationFrame(frame);
+}
+menuScreen();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
